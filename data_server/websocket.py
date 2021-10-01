@@ -3,14 +3,8 @@ import aiohttp
 
 
 class ExchangeSocketManager:
+    
     STREAM_URL = 'wss://stream.binance.com:9443/ws/'
-
-    WEBSOCKET_DEPTH_5 = '5'
-    WEBSOCKET_DEPTH_10 = '10'
-    WEBSOCKET_DEPTH_20 = '20'
-
-    WS_UPDATE_SPEED_100ms = '100ms'
-    WS_UPDATE_SPEED_1000ms = '1000ms'
 
     def __init__(self):
         self._conns = {}
