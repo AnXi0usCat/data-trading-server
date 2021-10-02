@@ -1,4 +1,9 @@
+import os
+import sys
 from aiohttp import web
+
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from data_server.websocket import ExchangeSocketManager
 
 routes = web.RouteTableDef()
