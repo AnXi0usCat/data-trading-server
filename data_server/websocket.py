@@ -3,13 +3,14 @@ import aiohttp
 
 
 class ExchangeSocketManager:
-    
+
     STREAM_URL = 'wss://stream.binance.com:9443/ws/'
 
     def __init__(self):
         self._conns = {}
         self._callbacks = {}
         self._session = aiohttp.ClientSession()
+        self.started = False
 
     async def _start_socket(self, path, callback):
         """ Initiates a socket connection to the exchange
@@ -17,6 +18,10 @@ class ExchangeSocketManager:
         :param path: connection endooint
         :param callback: a function that will be executed on a received message
         """
+        # create anew session if already closed
+        if self._session.closed:
+            self._session = aiohttp.ClientSession()
+
         ws = await self._session.ws_connect(self.STREAM_URL + path, autoping=True)
 
         self._conns[path] = ws
@@ -65,20 +70,25 @@ class ExchangeSocketManager:
         await self._start_socket(f'{symbol.lower()}@bookTicker', callback)
 
     async def run(self):
-        try:
-            await asyncio.gather(
-                *[
-                    self._listen(v, self._callbacks.get(k, None))
-                    for k, v in self._conns.items()
-                ]
-            )
-        finally:
-            await self.close()
+        """ Start listening to the messages from the exchange
+
+        """
+        await asyncio.gather(
+            *[
+                self._listen(v, self._callbacks.get(k, None))
+                for k, v in self._conns.items()
+            ]
+        )
 
     async def close(self):
+        # abort if connections already closed
+        if len(self._conns) == 0:
+            return
+
         keys = set(self._conns.keys())
         for key in keys:
             await self._stop_socket(key)
 
         self._conns = {}
         self._callbacks = {}
+        self.started = False
