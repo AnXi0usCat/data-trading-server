@@ -82,7 +82,7 @@ class ExchangeSocketManager:
 
     async def close(self):
         # abort if connections already closed
-        if len(self._conns) == 0:
+        if not self.started:
             return
 
         keys = set(self._conns.keys())
