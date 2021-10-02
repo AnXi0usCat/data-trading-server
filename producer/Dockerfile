@@ -29,7 +29,7 @@ RUN pip3 install --no-cache --upgrade  -r requirements.txt
 EXPOSE 8082
 
 # copy the contents into an image and set working direcotry
-COPY data_server /opt/data-server/data_server
-WORKDIR /opt/data-server/data_server
+COPY producer /opt/data-trading-server/producer
+WORKDIR /opt/data-trading-server/producer
 
 CMD ["python3.9", "-u", "app.py"]
