@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from aiohttp import web
@@ -5,6 +6,7 @@ from aiohttp import web
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from producer.websocket import ExchangeSocketManager
+from producer.producers import Producer
 
 routes = web.RouteTableDef()
 
@@ -28,7 +30,14 @@ class Server(web.Application):
         super().__init__()
         self.wcm = ExchangeSocketManager()
         self._pairs = ('btcusdt', 'ethusdt')
-        self._callback = print
+        self._callback = self._produce
+        self._topic = "price_changes1"
+        self._producer = Producer({
+            "bootstrap.servers": "kafka:9092",
+            "client_id": "price_changes_producer_1",
+            "acks": 0,
+            "retries": 0
+        })
 
     async def start_worker(self):
         for pair in self._pairs:
@@ -37,6 +46,12 @@ class Server(web.Application):
 
     async def stop_worker(self):
         await self.wcm.close()
+
+    async def _produce(self, message):
+        message_dict = json.loads(message.data)
+        key = message_dict.get('s')
+        value = message.data.encode('UTF-8')
+        self._producer.produce(topic=self._topic, key=key, value=value)
 
 
 if __name__ == '__main__':
