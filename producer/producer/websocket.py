@@ -49,7 +49,7 @@ class ExchangeSocketManager:
                 await ws.close()
                 break
             else:
-                callback(msg)
+                await callback(msg)
 
     async def start_individual_symbol_book_ticker_socket(self, symbol, callback):
         """
