@@ -34,7 +34,6 @@ class Server(web.Application):
         self._topic = "price_changes1"
         self._producer = Producer({
             "bootstrap.servers": "kafka:9092",
-            "client_id": "price_changes_producer_1",
             "acks": 0,
             "retries": 0
         })
