@@ -29,7 +29,7 @@ class Server(web.Application):
     def __init__(self):
         super().__init__()
         self.wcm = ExchangeSocketManager()
-        self._pairs = ('btcusdt', 'ethusdt')
+        self._pairs = ('btcusdt',)
         self._callback = self._produce
         self._topic = "price_changes1"
         self._producer = Producer({

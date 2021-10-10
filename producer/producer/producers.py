@@ -3,6 +3,7 @@ import confluent_kafka
 
 
 class Producer:
+
     def __init__(self, configs):
         self._producer = confluent_kafka.Producer(configs)
         self._cancelled = False
