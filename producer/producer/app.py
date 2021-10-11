@@ -2,6 +2,7 @@ import json
 import os
 import sys
 from aiohttp import web
+from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
@@ -49,7 +50,11 @@ class Server(web.Application):
     async def _produce(self, message):
         message_dict = json.loads(message.data)
         key = message_dict.get('s')
-        value = message.data.encode('UTF-8')
+        kafka_dict = dict()
+        kafka_dict['bid'] = message_dict['b']
+        kafka_dict['ask'] = message_dict['a']
+        kafka_dict['timestamp'] = str(datetime.now())
+        value = str(kafka_dict).encode('UTF-8')
         self._producer.produce(topic=self._topic, key=key, value=value)
 
 
