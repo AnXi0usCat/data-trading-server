@@ -21,7 +21,7 @@ services:
       SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: "no"
       SPARK_SSL_ENABLED: "no"
     volumes:
-      - workspace:/opt/workspace/
+      - ./workspace/:/bitnami/spark/
 
   spark-worker:
     image: "docker.io/bitnami/spark:3"
@@ -35,7 +35,7 @@ services:
       SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: "no"
       SPARK_SSL_ENABLED: "no"
     volumes:
-      - workspace:/opt/workspace
+      - ./workspace/:/bitnami/spark/
 
   zookeeper:
     image: "wurstmeister/zookeeper"
