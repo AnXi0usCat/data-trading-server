@@ -25,6 +25,18 @@ async def stop_worker_handler(request):
     return web.json_response({'status': 'worker stopped'})
 
 
+def kafka_input_quality_check(message_dict):
+    # check bid and ask prices for missing values
+    bid = message_dict.get('bid', None)
+    ask = message_dict.get('ask', None)
+    if bid is None or ask is None:
+        return False
+    # make sure that bid and ask prices are numeric
+    if not isinstance(bid, (int, float)) or not isinstance(ask, (int, float)):
+        return False
+    return True
+
+
 class Server(web.Application):
 
     def __init__(self):
@@ -56,7 +68,10 @@ class Server(web.Application):
         kafka_dict['pair'] = key
         kafka_dict['timestamp'] = str(datetime.now())
         value = json.dumps(kafka_dict)
-        self._producer.produce(topic=self._topic, key=key, value=value)
+        if kafka_input_quality_check(kafka_dict):
+            self._producer.produce(topic=self._topic, key=key, value=value)
+        else:
+            print(f'Input {kafka_dict} has failed failed the Kafka input quality check')
 
 
 if __name__ == '__main__':
