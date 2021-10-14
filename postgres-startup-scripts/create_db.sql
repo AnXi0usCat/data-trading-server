@@ -42,8 +42,7 @@ close_time     TIMESTAMP WITHOUT TIME ZONE      NOT NULL,
 CONSTRAINT pk_candle_stick_five_min PRIMARY KEY (id)
 );
 
-CREATE INDEX idx_candle_stick_five_min_1 ON candle_stick_five_min (open_time);
-CREATE INDEX idx_candle_stick_five_min_2 ON candle_stick_five_min (currency_pair);
+CREATE UNIQUE INDEX idx_candle_stick_five_min_1 ON candle_stick_five_min(currency_pair, open_time);
 
 -- grant privileges to green
 GRANT SELECT, INSERT, UPDATE, DELETE ON candle_stick_five_min to green;
