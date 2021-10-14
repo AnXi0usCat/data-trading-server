@@ -1,26 +1,61 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import *
 from pyspark.sql.types import StructType, DecimalType, TimestampType, StringType
-
-db_target_url = "jdbc:postgresql://192.168.0.13:5433/tradingdata"
-db_target_properties = {"user": "POSTGRES_USER", "password": "POSTGRES_PASSWORD"}
+import psycopg2
 
 
-def process_row(df, epoch_id):
-    df.write.jdbc(
-        url=db_target_url,
-        table="public.candle_stick_five_min",
-        mode="append",
-        properties=db_target_properties)
+class ForeachPostgresWriter:
+
+    def __init__(self, dbname, username, password, host, port):
+        self._dbname = dbname
+        self._username = username
+        self._password = password
+        self._host = host
+        self._port = port
+        self._conn = None
+        self._query = f"""INSERT INTO public.candle_stick_five_min (currency_pair, open_price, high_price, low_price, 
+                              close_price, open_time, close_time) VALUES (%s, %s, %s, %s, %s, %s, %s) 
+                          ON CONFLICT (currency_pair, open_time) 
+                          DO UPDATE SET 
+                              open_price =  EXCLUDED.open_price,
+                              high_price =  EXCLUDED.high_price,
+                              low_price =   EXCLUDED.low_price,
+                              close_price=  EXCLUDED.close_price; """
+
+    def open(self, partition_id, epoch_id):
+        # Open connection. This method is optional in Python.
+        self._conn = psycopg2.connect(
+            f"""dbname={self._dbname} user={self._username} 
+            password={self._password} host={self._host} port={self._port}"""
+        )
+        return True
+
+    def process(self, row):
+        # Write row to connection. This method is not optional in Python.
+        cursor = self._conn.cursor()
+        cursor.execute(self._query,
+                             (row.currency_pair,
+                              row.open_price,
+                              row.high_price,
+                              row.low_price,
+                              row.close_price,
+                              row.open_time,
+                              row.close_time))
+        self._conn.commit()
+        cursor.close()
+
+    def close(self, error):
+        # Close the connection. This method is optional in Python.
+        self._conn.close()
 
 
 if __name__ == '__main__':
     spark = (SparkSession.builder
-             # .config("spark.master", "spark://0.0.0.0:7077")
-             # .config("spark.driver.host", "192.168.0.13")
-             # .config("spark.submit.deployMode", "client")
-             # .config("spark.driver.bindAddress", "192.168.0.13")
-             # .config("spark.executor.memory", "512m")
+             .config("spark.master", "spark://0.0.0.0:7077")
+             .config("spark.driver.host", "192.168.0.13")
+             .config("spark.submit.deployMode", "client")
+             .config("spark.driver.bindAddress", "192.168.0.13")
+             .config("spark.executor.memory", "512m")
              .getOrCreate())
 
     # set log level to WARN
@@ -60,7 +95,7 @@ if __name__ == '__main__':
         first("mid_price").alias("open_price"),
         last("mid_price").alias("close_price"))
 
-    # split the window function in to the start and end timestamp
+    # split the window function results in to the start and end timestamp
     df_parsed = df_parsed.select(
         col("pair").alias("currency_pair"),
         col("open_price"),
@@ -71,19 +106,17 @@ if __name__ == '__main__':
         col("window.end").alias("close_time")
     )
 
-    # write the results in to the postgres sink
-    (df_parsed.writeStream
-     .foreachBatch(process_row)
-     .outputMode("update")
-     .start()
-     .awaitTermination())
+    # create a Postgres sink
+    postgres_writer = ForeachPostgresWriter(
+        dbname="tradingdata",
+        username="anonymous",
+        password="fedjikrejnkifdngkjrew",
+        host="192.168.0.13",
+        port=5433)
 
-    # print output to the console
-    # (df_parsed.writeStream
-    #  .format("console")
-    #  .outputMode("update")
-    #  .option("checkpointLocation", "...")
-    #  # .option("failOnDataLoss", "false")
-    #  .option("truncate", "false")
-    #  .start()
-    #  .awaitTermination())
+    # write the results in to the postgres sink
+    query = (df_parsed.writeStream
+             .outputMode("update")
+             .foreach(postgres_writer)
+             .start().
+             awaitTermination())
