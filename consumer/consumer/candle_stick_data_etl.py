@@ -5,6 +5,8 @@ import psycopg2
 
 
 class ForeachPostgresWriter:
+    """ Implementation of the spark custom data sink interface
+    """
 
     def __init__(self, dbname, username, password, host, port):
         self._dbname = dbname
@@ -23,6 +25,12 @@ class ForeachPostgresWriter:
                               close_price=  EXCLUDED.close_price; """
 
     def open(self, partition_id, epoch_id):
+        """ Opens a connection to the postgres database.
+
+        :param partition_id: integer provided from Spark - part of contract, not used
+        :param epoch_id: integer provided from Spark - part of contract, not used
+        :return: Returns `True` as per spark contract
+        """
         # Open connection. This method is optional in Python.
         self._conn = psycopg2.connect(
             f"""dbname={self._dbname} user={self._username} 
@@ -31,6 +39,13 @@ class ForeachPostgresWriter:
         return True
 
     def process(self, row):
+        """ Does an UPSERT to the postgres database fromm every row received from the Spark consumer
+            On conflict will update values as per data quality check
+
+        :param row: Instance of the
+        :return: None
+        """
+
         # Write row to connection. This method is not optional in Python.
         cursor = self._conn.cursor()
         cursor.execute(self._query,
@@ -45,6 +60,11 @@ class ForeachPostgresWriter:
         cursor.close()
 
     def close(self, error):
+        """ Closes the connection to the database
+
+        :param error: part of the Spark consumer contract - not used
+        :return:
+        """
         # Close the connection. This method is optional in Python.
         self._conn.close()
 
@@ -85,11 +105,8 @@ if __name__ == '__main__':
         col("value.pair"))
     )
 
-    # group by pair and calculate a 5 minute candlestick (open, low, high, close) price and other
-    # statistics overlapping every 1 minute
+    # group by pair and calculate a 5 minute candlestick (open, low, high, close) price overlapping every 1 minute
     df_parsed = df_parsed.groupby("pair", window("timestamp", "5 minute", "1 minute")).agg(
-        count("*").alias("count"),
-        mean("mid_price").alias("mean"),
         min("mid_price").alias("low_price"),
         max("mid_price").alias("high_price"),
         first("mid_price").alias("open_price"),

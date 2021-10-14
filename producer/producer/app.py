@@ -14,6 +14,12 @@ routes = web.RouteTableDef()
 
 @routes.get('/start')
 async def start_worker_handler(request):
+    """ Start endpoint, will instruct the server to open a TCP connection to the Binance exchange
+
+    :param request: request parameter - not needed
+    :return: JSON payload
+    """
+
     if not app.wcm.started:
         await app.start_worker()
     return web.json_response({'status': 'worker started'})
@@ -21,11 +27,24 @@ async def start_worker_handler(request):
 
 @routes.get('/stop')
 async def stop_worker_handler(request):
+    """ Stop endpoint, will instruct the server to close a TCP socket to the Binance exchange
+
+    :param request: request parameter - not needed
+    :return: JSON payload
+    """
     await app.stop_worker()
     return web.json_response({'status': 'worker stopped'})
 
 
 def kafka_input_quality_check(message_dict):
+    """ Input data quality check before writing the JSON to the Kafka broker.
+        Makes sure that we don't have any missing values and that bid and ask values
+        are numeric
+
+    :param message_dict: python dict which contains bid/ask spread
+    :return: bolean result
+    """
+
     # check bid and ask prices for missing values
     bid = message_dict.get('bid', None)
     ask = message_dict.get('ask', None)
@@ -38,6 +57,8 @@ def kafka_input_quality_check(message_dict):
 
 
 class Server(web.Application):
+    """ Simple fully asynchronous Http web server built with aiohttp framework
+    """
 
     def __init__(self):
         super().__init__()
@@ -52,14 +73,28 @@ class Server(web.Application):
         })
 
     async def start_worker(self):
+        """ Starts an instance web socket manager worker
+
+        :return: None
+        """
         for pair in self._pairs:
             await self.wcm.start_individual_symbol_book_ticker_socket(pair, self._callback)
         await self.wcm.run()
 
     async def stop_worker(self):
+        """ Stops an instance web socket manager worker
+
+        :return: None
+        """
         await self.wcm.close()
 
     async def _produce(self, message):
+        """ Parses the data stream returned from the TCP connection with the exchange
+            creates a JSON payload for the Kafka producer and does the input data quality check
+
+        :param message: Instanceeof the aiohttp Message class
+        :return: None
+        """
         message_dict = json.loads(message.data)
         key = message_dict.get('s')
         kafka_dict = dict()

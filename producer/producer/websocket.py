@@ -81,6 +81,11 @@ class ExchangeSocketManager:
         )
 
     async def close(self):
+        """ Close the connection to the exchange and remove
+            all of the connection instances from the dict
+
+        :return: None
+        """
         # abort if connections already closed
         if not self.started:
             return
