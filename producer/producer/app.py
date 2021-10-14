@@ -50,8 +50,13 @@ def kafka_input_quality_check(message_dict):
     ask = message_dict.get('ask', None)
     if bid is None or ask is None:
         return False
+
     # make sure that bid and ask prices are numeric
-    if not isinstance(bid, (int, float)) or not isinstance(ask, (int, float)):
+    try:
+        bid = float(bid)
+        ask = float(ask)
+    except Exception as ex:
+        print(f'{bid} or {ask} are not numeric')
         return False
     return True
 
@@ -63,7 +68,7 @@ class Server(web.Application):
     def __init__(self):
         super().__init__()
         self.wcm = ExchangeSocketManager()
-        self._pairs = ('btcusdt',)
+        self._pairs = ('btcusdt', 'ethusdt',)
         self._callback = self._produce
         self._topic = "price_changes1"
         self._producer = Producer({
