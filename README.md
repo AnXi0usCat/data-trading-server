@@ -153,7 +153,7 @@ will correspond to a one to one increase in data throughput.
 
 ### The pipelines would be run on a daily basis by 7 am every day
 
-This is a streaming pipeline so they ran all the time and this scenario is irrelevant.
+This is a streaming pipeline, it runs constantly, so this scenario is irrelevant.
 
 ### The database needed to be accessed by 100+ people
 
@@ -162,48 +162,55 @@ so the users won't lock the main table on the production database with their que
 
 ## Starting the pipeline locally
 
+Make sure you have Docker and docker-compose installed on your machine.
 
+1) Make sure that you have python 3.6 running on your computer. The Bitnami Spark docker images are running on python3.6. 
+It is a requirement to have the same version of python on both the Spark cluster (in containers) and the spark Driver (localhost)
+2) Make sure you have Apache Spark installed locally, since we will use the local `spark-submit` facility to submit the spark job to 
+containerised Spark cluster
+3) Install python dependencies on your computer
+```bash
+pip3 install -t requirementts.txt
+```
+4) Set the actual host of the Spark driver in the configuration so the Spark workers can communicate with it
+```python
+# i know i should set this with environment variables but im f**king tired and just don't care anymore
+spark = (SparkSession.builder
+         .config("spark.master", "spark://0.0.0.0:7077")
+         .config("spark.driver.host", "192.168.0.13") # change this to your hostname
+         .config("spark.submit.deployMode", "client")
+         .config("spark.driver.bindAddress", "192.168.0.13") # change this to your hostname
+         .config("spark.executor.memory", "512m")
+         .getOrCreate())
+```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+5) go to the base directory and start your service with docker compose (it will take a while to start):
+```bash
+docker-compose up --build -d
+```
+if everything is fine you should see all of the components running in docker containers with `docker ps -a`:
+```bash
+MihhailFjodorovs-MacBook-Pro:data-trading-server mihhailf$ docker ps -a
+CONTAINER ID   IMAGE                           COMMAND                  CREATED        STATUS        PORTS                                                                                  NAMES
+4061a61b2c9a   data-trading-server_producer    "python3.9 -u app.py"    17 hours ago   Up 17 hours   8082/tcp, 0.0.0.0:8082->8080/tcp, :::8082->8080/tcp                                    data-trading-server_producer_1
+2e1c7245bf0d   wurstmeister/kafka:2.13-2.6.0   "start-kafka.sh"         17 hours ago   Up 17 hours   0.0.0.0:9094->9094/tcp, :::9094->9094/tcp, 0.0.0.0:56174->9092/tcp                     data-trading-server_kafka_1
+caba1d29d6e9   postgres:13.3-alpine            "docker-entrypoint.s…"   17 hours ago   Up 17 hours   0.0.0.0:5433->5432/tcp, :::5433->5432/tcp                                              data-trading-server_postgres_1
+408c0c0cb4c9   bitnami/spark:3                 "/opt/bitnami/script…"   17 hours ago   Up 17 hours                                                                                          data-trading-server_spark-worker_1
+9e094db6ac7c   wurstmeister/zookeeper          "/bin/sh -c '/usr/sb…"   17 hours ago   Up 17 hours   22/tcp, 2888/tcp, 3888/tcp, 0.0.0.0:2181->2181/tcp, :::2181->2181/tcp                  data-trading-server_zookeeper_1
+6a9cba984fc5   bitnami/spark:3                 "/opt/bitnami/script…"   17 hours ago   Up 17 hours   0.0.0.0:7077->7077/tcp, :::7077->7077/tcp, 0.0.0.0:8084->8080/tcp, :::8084->8080/tcp   data-trading-server_spark_1
+```
+6) At this point you can start ingesting the data from the exchange in to oyu prodcuer, converting it to JSON and storing in the Kafka topic. Producer is exposing `start` endpoint
+which can be reached from `http:localhost:8082/start` and the data ingestion can be stopped by hitting the `http:localhost:8082/stop` endpoint.
+7) if everything worked correctly 🤞 then we should be able to log in to our postgres container `psql -h localhost -p 5433 -d tradingdata -U anonymous` 
+(You can find the password in the `postgres-startup-scripts/create_db.sql`) and see the table being constantly updated with the results:
+```bash
+tradingdata=> select * from candle_stick_five_min order by currency_pair, open_time limit 5;
+ id | currency_pair | open_price | high_price | low_price | close_price |      open_time      |     close_time
+----+---------------+------------+------------+-----------+-------------+---------------------+---------------------
+  3 | BTCUSDT       |    58000.0 |    58059.0 |   57996.0 |     58036.0 | 2021-10-14 18:54:00 | 2021-10-14 18:59:00
+  5 | BTCUSDT       |    58000.0 |    58059.0 |   57980.0 |     58029.0 | 2021-10-14 18:55:00 | 2021-10-14 19:00:00
+  1 | BTCUSDT       |    58000.0 |    58059.0 |   57912.0 |     57923.0 | 2021-10-14 18:56:00 | 2021-10-14 19:01:00
+  2 | BTCUSDT       |    58000.0 |    58059.0 |   57867.5 |     57923.0 | 2021-10-14 18:57:00 | 2021-10-14 19:02:00
+  4 | BTCUSDT       |    58000.0 |    58059.0 |   57848.0 |     57878.0 | 2021-10-14 18:58:00 | 2021-10-14 19:03:00
+(5 rows)
+```
