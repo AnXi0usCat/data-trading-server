@@ -134,7 +134,33 @@ adingdata=> select * from candle_stick_five_min order by currency_pair, open_tim
 
 ## Addressing other scenarios
 
-## Starting the pipline locally
+### Data increases by 100x
+The only way the data increase the amount of data by 100x is to add additional 100 currency pairs to the data stream.
+Our system will be able to handle this load, but we will have to horizontally scale out several components in order to
+keep things running smoothly.
+* The exchange allows to open up to 1024 data streams per single TCP connections in theory we should be able to 
+handle the increased load, or we can start several producers each opening their own stream and receiving a subset 
+of cryptocurrency pairs.
+* We will have to increase the number of partitions in our Kafka topic, ideally we will do one partition per currency pair
+so if we have any issues with some pairs it will not affect the data flow for the other ones.
+* Kafka supports a single consumer in every consumer group per one partition, so we can scale up our Spark cluster to a 100
+workers, where every worker would be responsible for processing a single currency pair. This way we will not sacrifice the
+processing speed latency or data throughput.
+* The only bottleneck would be the Postgres persistence layer because we cannot scale it out horizontally it will be dealing with
+a 100x concurrent writes to a single table. This could be fine but in that scenario I would be inclined to substitute Postgres with
+Apache Cassandra. Since Cassandra is distributed, it is optimised for concurrent writes and increasing the number of nodes
+will correspond to a one to one increase in data throughput.
+
+### The pipelines would be run on a daily basis by 7 am every day
+
+This is a streaming pipeline so they ran all the time and this scenario is irrelevant.
+
+### The database needed to be accessed by 100+ people
+
+If the database has to be accessed by a 100 people a day I would suggest on creating a dedicated read replica database for this purpose,
+so the users won't lock the main table on the production database with their queries.
+
+## Starting the pipeline locally
 
 
 
