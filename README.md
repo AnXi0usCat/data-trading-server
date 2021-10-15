@@ -1,6 +1,7 @@
 # Streaming Data Processing Pipeline - Udacity Data Engineering NanoDegree Capstone Project
 
 ## Purpose of the project
+
 I have built a cryptocurrency algorithmic trading system, which requires 12 most recent 5 minute prices in the 
 candlestick format (open, high, low, close). At first, I was relying on the candle stick data provided by the exchange 
 through the REST API endpoint, but quickly realised that I can experience delays of up to 10 seconds to get the
@@ -17,13 +18,13 @@ There are several challenges associated with building such a system:
 
 ## Technologies used
 
-* **Aiohttp Web Server**: asynchronous web server written in python which is responsible for maintaining an open TCP socket connection with the exchange and receiving 
+* **Aiohttp Web Server (producer)**: asynchronous web server written in python which is responsible for maintaining an open TCP socket connection with the exchange and receiving 
 the stream of raw tick data, doing the data quality check, converting it to JSON format and passing it to Kafka producer. The server exposes two REST endpoints 
 `start` and `stop` which provide a way of controlling the data flow through the entire system.
 * **Apache Kafka**: Distributed, fault tolerant streaming data streaming system which is responsible for storing the JSON converted tick data in their own partitions (queues). 
 I decided to store the data in Kafka prior starting the ETL because of the ability to replay any failed offsets from the Kafka partition in case of downstream ETL failure
 which would have been impossible if we did ETL on the data received directly from TCP sockets.
-* **Apache Spark - Structured Streaming**: Distributed data processing system which I used for the ETL process. In my setup it is split into three parts.
+* **Apache Spark - Structured Streaming (consumer)**: Distributed data processing system which I used for the ETL process. In my setup it is split into three parts.
   1) Master Node (1 container): responsible for assigning tasks to the worker nodes.
   2) Worker Node (1 or more containers): Creates Kafka Consumer to read the data from the broker, performs ETL process and writes results to the sink.
   3) Driver Node (localhost): consists of the local `spark-submit` facility and the `candle_stick_data_etl.py` which specifies the configuration and the ETL process itself.
@@ -31,6 +32,40 @@ which would have been impossible if we did ETL on the data received directly fro
 but the whole thing already took 40+ hours to set up as it is and the author is  tired and doesn't care anymore :) ).
 * **Docker**: Every service in this list is running within its own Docker container which provides dependencies isolation and lets each component run on its own virtual machine.
 * **Docker Compose**: Orchestration tool for docker containers, which allows me tto spin up and shut down all the distributed components at the same time.
+
+## Data sources and formats
+
+I have used two external data sources in the form of TCP socket streams from the cryptocurrency exchange for the assets BTCUSDT and ETHUSDT. 
+The data payload arrives in the form of binary encoded string:
+```bash
+b'{
+  "u":400900217,     // order book updateId
+  "s":"BNBUSDT",     // symbol
+  "b":"25.35190000", // best bid price
+  "B":"31.21000000", // best bid qty
+  "a":"25.36520000", // best ask price
+  "A":"40.66000000"  // best ask qty
+}'
+```
+Internally the raw data is stored in a Kafka partition as a JSON string which acts as a data source for the
+ETL run bt Spark Structured Streaming worker:
+```bash
+'{"bid": "23456.60", "ask": "23457.60", "pair": "BTCUSDT", "2021-01-01 23:34:45.000"}'
+```
+
+## Data quality controls
+
+I have used two data quality checks for this project. Both of the checks are implemented before writing data to a persistence layer.
+
+* I do a first data quality check before writing a JSON converted tick data to a Kafka topic. I check if the bid and ask price contain
+missing values and if they could be converted to a numeric type. The check is implemented before writing to Kafka because it's hard to
+deal with corrupted data once it is committed to a partition. Since more than one consumer group can read from any partition they will all have to
+implement a data quality checks of their own if it is not performed beforehand.
+* Second quality check is done before persisting the ETL results postgres database. Spark workers do the transformation on the raw data in micro-batches
+and results for every time window are constantly updated with every new batch of data and persisted to the database. 
+I have a unique constraint in the database on the `currency_pair` name and the `open_time`, so in order to satisfy it and avoid duplicates or errors
+i perform an upsert operation if the data already exist. This way at the end of the 5 minute window, we will have only the latest 
+version of data persisted in the database.
 
 ## ETL
 
@@ -97,8 +132,52 @@ adingdata=> select * from candle_stick_five_min order by currency_pair, open_tim
  1471 | ETHUSDT       |     3797.0 |     3797.0 |    3782.5 |      3787.0 | 2021-10-14 19:09:00 | 2021-10-14 19:14:00
 ```
 
-## Data sources
-
-## Data quality controls
-
 ## Addressing other scenarios
+
+## Starting the pipline locally
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
